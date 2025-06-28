@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* Your custom styles here */
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
