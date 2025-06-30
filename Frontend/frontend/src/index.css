@@ -4,6 +4,17 @@
 @layer base {
   body {
     font-family: 'Inter', system-ui, sans-serif;
+    background-color: #0d1117;
+    color: #f0f6fc;
+  }
+  
+  html {
+    background-color: #0d1117;
+  }
+  
+  #root {
+    background-color: #0d1117;
+    min-height: 100vh;
   }
 }
 

@@ -13,15 +13,6 @@ const api = axios.create({
 
 // API service functions
 export const apiService = {
-  // Health check
-  healthCheck: async () => {
-    try {
-      const response = await api.get('/health');
-      return response.data;
-    } catch (error) {
-      throw new Error(`Health check failed: ${error.message}`);
-    }
-  },
 
   // Upload PDF file
   uploadPDF: async (file, onProgress = null) => {
@@ -71,54 +62,6 @@ export const apiService = {
     }
   },
 
-  // Search similar content
-  searchSimilar: async (query, limit = 5) => {
-    try {
-      const response = await api.post('/api/search', {
-        query: query,
-        limit: limit,
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error(`Search failed: ${error.message}`);
-    }
-  },
-
-  // Start teaching session
-  startTeachingSession: async (documentId) => {
-    try {
-      const response = await api.post('/api/teaching/start', {
-        document_id: documentId,
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error(`Failed to start teaching session: ${error.message}`);
-    }
-  },
-
-  // Send message in teaching session
-  sendMessage: async (sessionId, message) => {
-    try {
-      const response = await api.post('/api/teaching/message', {
-        session_id: sessionId,
-        message: message,
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error(`Failed to send message: ${error.message}`);
-    }
-  },
-
-  // Get session history
-  getSessionHistory: async (sessionId) => {
-    try {
-      const response = await api.get(`/api/teaching/session/${sessionId}/history`);
-      return response.data;
-    } catch (error) {
-      throw new Error(`Failed to get session history: ${error.message}`);
-    }
-  },
-
   // Delete document
   deleteDocument: async (documentId) => {
     try {
@@ -128,53 +71,31 @@ export const apiService = {
       throw new Error(`Failed to delete document: ${error.message}`);
     }
   },
-};
 
-// Example usage functions for components
-export const useApi = () => {
-  return {
-    // Upload with progress tracking
-    uploadWithProgress: async (file, setProgress, setError) => {
-      try {
-        setError(null);
-        const result = await apiService.uploadPDF(file, setProgress);
-        return result;
-      } catch (error) {
-        setError(error.message);
-        throw error;
-      }
-    },
+  // Generate initial question
+  generateQuestion: async () => {
+    try {
+      const response = await api.get('/api/gemini/generate-question');
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to generate question: ${error.message}`);
+    }
+  },
 
-    // Fetch documents with error handling
-    fetchDocuments: async (setDocuments, setError) => {
-      try {
-        setError(null);
-        const result = await apiService.getDocuments();
-        setDocuments(result.documents || []);
-        return result;
-      } catch (error) {
-        setError(error.message);
-        throw error;
-      }
-    },
+  // Generate follow-up question
+  generateFollowupQuestion: async (userAnswer, previousQuestion, conversationHistory = []) => {
+    try {
+      const response = await api.post('/api/gemini/followup-question', {
+        user_answer: userAnswer,
+        previous_question: previousQuestion,
+        conversation_history: conversationHistory
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to generate follow-up question: ${error.message}`);
+    }
+  },
 
-    // Search with debouncing
-    searchContent: async (query, setResults, setError) => {
-      try {
-        setError(null);
-        if (!query.trim()) {
-          setResults([]);
-          return;
-        }
-        const result = await apiService.searchSimilar(query);
-        setResults(result.results || []);
-        return result;
-      } catch (error) {
-        setError(error.message);
-        throw error;
-      }
-    },
-  };
 };
 
 export default apiService; 

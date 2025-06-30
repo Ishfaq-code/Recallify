@@ -2,20 +2,23 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from typing import Optional
 import uvicorn
 import os
 from dotenv import load_dotenv
+import shutil
 
 # Import our services
-from services.pdf_processor import PDFProcessor
-from services.vector_store import VectorStore
-
+from services.pdf_processor import extract_text_from_pdf, chunk_text
+from services.embeddings import get_embeddings
+from services.chroma_utils import add_to_db, get_all_documents, get_document_chunks, delete_document
+from services.gemini_utils import generate_initial_question, generate_followup_question
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(
     title="Entaract API",
-    description="AI Teaching Assistant - PDF Processing and Chat API",
+    description="AI Teaching Assistant - PDF Processing API",
     version="1.0.0"
 )
 
@@ -28,21 +31,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pydantic models for request/response
-class SearchRequest(BaseModel):
-    query: str
-    limit: int = 5
-
-class TeachingSessionRequest(BaseModel):
-    document_id: str
-
-class MessageRequest(BaseModel):
-    session_id: str
-    message: str
+# Pydantic models for requests
+class FollowupQuestionRequest(BaseModel):
+    user_answer: str
+    previous_question: str
+    conversation_history: list = []
 
 # Initialize services
-pdf_processor = PDFProcessor()
-vector_store = VectorStore()
 
 @app.get("/")
 async def root():
@@ -50,73 +45,54 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "message": "API is operational"}
+    return {
+        "status": "healthy", 
+        "message": "API is operational"
+    }
 
 @app.post("/api/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    """
-    Upload and process a PDF file.
-    Extracts text, chunks it, and stores in vector database.
-    """
     try:
-        # Validate file type
-        if not file.filename or not file.filename.endswith('.pdf'):
-            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-        
-        # Read file content
-        file_content = await file.read()
-        
-        # Process PDF
-        text_content = pdf_processor.extract_text(file_content)
-        
-        if not text_content:
-            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
-        
-        # Chunk the text
-        chunks = pdf_processor.chunk_text(text_content)
-        
-        # Store in vector database
-        filename = file.filename or "unknown_file.pdf"
-        document_id = await vector_store.store_document(
-            filename=filename,
-            chunks=chunks
-        )
-        
-        return {
-            "success": True,
-            "message": "PDF processed successfully",
-            "document_id": document_id,
-            "filename": filename,
-            "chunks_count": len(chunks),
-            "total_characters": len(text_content)
-        }
-        
+        temp_path = f"temp_{file.filename}"
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        text = extract_text_from_pdf(temp_path)
+        os.remove(temp_path)
+
+        chunks = chunk_text(text)
+        embedded_chunks = get_embeddings(chunks)
+        add_to_db(embedded_chunks)
+        return {"text": text, "chunks": chunks, "embedded_chunks": embedded_chunks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
 @app.get("/api/documents")
 async def get_documents():
-    """Get list of uploaded documents"""
+    """Get list of all uploaded documents"""
     try:
-        documents = await vector_store.get_all_documents()
+        documents = get_all_documents()
         return {"documents": documents}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching documents: {str(e)}")
 
 @app.get("/api/documents/{document_id}/chunks")
-async def get_document_chunks(document_id: str):
-    """Get all chunks for a specific document"""
+async def get_document_chunks_route(document_id: str):
+    """Get chunks for a specific document"""
     try:
-        chunks = await vector_store.get_document_chunks(document_id)
-        return {"document_id": document_id, "chunks": chunks}
+        chunks = get_document_chunks(document_id)
+        if chunks:
+            return chunks
+        else:
+            raise HTTPException(status_code=404, detail="Document not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching document chunks: {str(e)}")
 
 @app.delete("/api/documents/{document_id}")
-async def delete_document(document_id: str):
-    """Delete a document and all its chunks"""
+async def delete_document_route(document_id: str):
+    """Delete a document by ID"""
     try:
-        success = await vector_store.delete_document(document_id)
+        success = delete_document(document_id)
         if success:
             return {"success": True, "message": "Document deleted successfully"}
         else:
@@ -124,59 +100,28 @@ async def delete_document(document_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting document: {str(e)}")
 
-@app.post("/api/search")
-async def search_similar(request: SearchRequest):
-    """Search for similar document chunks"""
-    try:
-        results = await vector_store.search_similar(request.query, request.limit)
-        return {"query": request.query, "results": results}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
-# Teaching session endpoints (placeholder for future implementation)
-@app.post("/api/teaching/start")
-async def start_teaching_session(request: TeachingSessionRequest):
-    """Start a teaching session with a document"""
+@app.get("/api/gemini/generate-question")
+async def generate_question():
+    """Generate an initial question using Gemini AI"""
     try:
-        # For now, just return a session ID
-        # In the future, this will initialize Gemini and generate first questions
-        session_id = f"session_{request.document_id}"
-        return {
-            "success": True,
-            "session_id": session_id,
-            "document_id": request.document_id,
-            "message": "Teaching session started! Gemini integration coming soon..."
-        }
+        question = generate_initial_question()
+        return {"question": question}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error starting teaching session: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating question: {str(e)}")
 
-@app.post("/api/teaching/message")
-async def send_message(request: MessageRequest):
-    """Send a message in a teaching session"""
+@app.post("/api/gemini/followup-question")
+async def generate_followup(request: FollowupQuestionRequest):
+    """Generate a follow-up question based on user's answer"""
     try:
-        # Placeholder for Gemini integration
-        return {
-            "success": True,
-            "session_id": request.session_id,
-            "user_message": request.message,
-            "ai_response": "Gemini integration coming soon! This will be where the AI responds to your teaching.",
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
+        question = generate_followup_question(
+            user_answer=request.user_answer,
+            previous_question=request.previous_question,
+            conversation_history=request.conversation_history
+        )
+        return {"question": question}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error sending message: {str(e)}")
-
-@app.get("/api/teaching/session/{session_id}/history")
-async def get_session_history(session_id: str):
-    """Get conversation history for a teaching session"""
-    try:
-        # Placeholder for session history
-        return {
-            "session_id": session_id,
-            "history": [],
-            "message": "Session history feature coming soon!"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching session history: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating follow-up question: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 

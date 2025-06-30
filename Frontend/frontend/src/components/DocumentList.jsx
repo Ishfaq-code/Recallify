@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { File, Trash2, Play, RefreshCw, Upload, Calendar, Hash, Type } from 'lucide-react';
+import { File, Trash2, Play, RefreshCw, Upload, Calendar, Hash, Type, AlertCircle, FileText } from 'lucide-react';
 import { apiService } from '../services/api';
 
 const DocumentList = ({ onSelectDocument, onNavigateToUpload }) => {
@@ -26,8 +26,9 @@ const DocumentList = ({ onSelectDocument, onNavigateToUpload }) => {
     }
   };
 
-  const handleDeleteDocument = async (documentId, filename) => {
-    if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
+  const handleDeleteDocument = async (e, documentId) => {
+    e.stopPropagation();
+    if (!confirm(`Are you sure you want to delete this document?`)) return;
     
     setDeleting(documentId);
     try {
@@ -58,173 +59,137 @@ const DocumentList = ({ onSelectDocument, onNavigateToUpload }) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Your Documents</h2>
-        </div>
-        
-        <div className="text-center py-12">
-          <RefreshCw className="h-8 w-8 text-gray-400 mx-auto mb-4 animate-spin" />
-          <p className="text-gray-600">Loading documents...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">Your Documents</h2>
-          <p className="text-gray-600 mt-1">
-            {documents.length} document{documents.length !== 1 ? 's' : ''} uploaded
+    <div className="max-w-4xl mx-auto p-6 relative z-10">
+      {/* Content backdrop for better readability */}
+      <div className="backdrop-blur-sm bg-black/10 rounded-xl p-6 border border-gray-700/30">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-[#8ab4f8] mb-2">Your Documents</h2>
+          <p className="text-[#8ab4f8]">
+            Select a document to start a teaching session
           </p>
         </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={loadDocuments}
-            className="flex items-center bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          <button
-            onClick={onNavigateToUpload}
-            className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload New
-          </button>
-        </div>
-      </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-700 text-sm">{error}</p>
-          <button
-            onClick={() => setError(null)}
-            className="text-red-600 hover:text-red-800 text-sm underline mt-1"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+        {/* Loading State */}
+        {loading && (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <span className="ml-3 text-[#8ab4f8]">Loading documents...</span>
+          </div>
+        )}
 
-      {/* Empty State */}
-      {documents.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <File className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No documents yet</h3>
-          <p className="text-gray-600 mb-6">
-            Upload your first PDF to start teaching with Gemini
-          </p>
-          <button
-            onClick={onNavigateToUpload}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md font-medium"
-          >
-            Upload Your First Document
-          </button>
-        </div>
-      )}
+        {/* Error State */}
+        {error && !loading && (
+          <div className="bg-red-900/20 border border-red-700/30 text-red-400 px-4 py-3 rounded-lg mb-6">
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              <span>{error}</span>
+            </div>
+          </div>
+        )}
 
-      {/* Documents Grid */}
-      {documents.length > 0 && (
-        <div className="space-y-4">
-          {documents.map((doc) => (
-            <div key={doc.document_id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start">
-                {/* Document Info */}
-                <div className="flex-1">
-                  <div className="flex items-start">
-                    <File className="h-5 w-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-medium text-gray-900 truncate">{doc.filename}</h3>
-                      
-                      {/* Stats */}
-                      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-500">
-                        <div className="flex items-center">
-                          <Hash className="h-4 w-4 mr-1" />
-                          <span>{doc.chunk_count} chunks</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Type className="h-4 w-4 mr-1" />
-                          <span>{doc.total_characters?.toLocaleString()} chars</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-1" />
-                          <span>{formatDate(doc.upload_timestamp)}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="text-green-600 text-xs bg-green-100 px-2 py-1 rounded">
-                            Processed
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+        {/* Empty State */}
+        {!loading && !error && documents.length === 0 && (
+          <div className="text-center py-12">
+            <FileText className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-[#8ab4f8] mb-2">No documents found</h3>
+            <p className="text-[#8ab4f8] mb-6">Upload your first PDF to get started!</p>
+            <button
+              onClick={onNavigateToUpload}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+            >
+              Upload PDF
+            </button>
+          </div>
+        )}
+
+        {/* Header with Actions */}
+        {!loading && documents.length > 0 && (
+          <div className="flex justify-between items-center mb-6">
+            <p className="text-[#8ab4f8]">
+              {documents.length} document{documents.length !== 1 ? 's' : ''} uploaded
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={loadDocuments}
+                className="flex items-center bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                disabled={loading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+              <button
+                onClick={onNavigateToUpload}
+                className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload New
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Documents Grid */}
+        {!loading && documents.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4 hover:border-blue-500/50 transition-all duration-200 cursor-pointer group"
+                onClick={() => onSelectDocument(doc)}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center">
+                    <FileText className="h-5 w-5 text-blue-400 mr-2" />
+                    <h3 className="font-medium text-[#8ab4f8] group-hover:text-blue-300 transition-colors truncate">
+                      {doc.filename}
+                    </h3>
                   </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex space-x-2 ml-4 flex-shrink-0">
                   <button
-                    onClick={() => handleStartTeaching(doc)}
-                    className="flex items-center bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm font-medium"
+                    onClick={(e) => handleDeleteDocument(e, doc.id)}
+                    className="text-gray-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Delete document"
+                    disabled={deleting === doc.id}
                   >
-                    <Play className="h-4 w-4 mr-1" />
-                    Teach
-                  </button>
-                  <button
-                    onClick={() => handleDeleteDocument(doc.document_id, doc.filename)}
-                    disabled={deleting === doc.document_id}
-                    className="flex items-center bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md text-sm font-medium disabled:opacity-50"
-                  >
-                    {deleting === doc.document_id ? (
-                      <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                    {deleting === doc.id ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Trash2 className="h-4 w-4 mr-1" />
+                      <Trash2 className="h-4 w-4" />
                     )}
-                    {deleting === doc.document_id ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+                
+                <div className="text-sm text-[#8ab4f8] space-y-1">
+                  <p><strong>Chunks:</strong> {doc.chunks_count || 'N/A'}</p>
+                  <p><strong>Characters:</strong> {doc.total_characters?.toLocaleString() || 'N/A'}</p>
+                  <p><strong>Uploaded:</strong> {formatDate(doc.created_at)}</p>
+                </div>
+                
+                <div className="mt-4 pt-3 border-t border-gray-700/50">
+                  <button
+                    className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
+                    onClick={() => onSelectDocument(doc)}
+                  >
+                    Start Teaching Session →
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Quick Stats Summary */}
-      {documents.length > 0 && (
-        <div className="mt-8 bg-gray-50 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 mb-2">Library Summary</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500">Total Documents:</span>
-              <span className="ml-2 font-medium">{documents.length}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Total Chunks:</span>
-              <span className="ml-2 font-medium">
-                {documents.reduce((sum, doc) => sum + (doc.chunk_count || 0), 0)}
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-500">Total Characters:</span>
-              <span className="ml-2 font-medium">
-                {documents.reduce((sum, doc) => sum + (doc.total_characters || 0), 0).toLocaleString()}
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-500">Ready to Teach:</span>
-              <span className="ml-2 font-medium text-green-600">{documents.length}</span>
-            </div>
+            ))}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Action Buttons */}
+        {!loading && documents.length > 0 && (
+          <div className="mt-8 text-center">
+            <button
+              onClick={onNavigateToUpload}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md font-medium transition-colors"
+            >
+              Upload Another PDF
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
