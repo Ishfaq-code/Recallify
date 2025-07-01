@@ -2,6 +2,9 @@
 Recallify is an AI driven webapp powered by Gemini to help students study using active recall 
 
 ## Frontend
+### Prerequistes
+- Node is installed on your machine
+  
 After cloning the repo, navigate into the frontend directory using ```cd Frontend\frontend``` and simply run ```npm install``` to install all the frontend directories. To start the frontend server make sure you are in the correct directory and run ```npm run dev```
 
 ## Backend
