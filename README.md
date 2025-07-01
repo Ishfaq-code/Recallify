@@ -6,7 +6,7 @@ After cloning the repo, navigate into the frontend directory using ```cd Fronten
 
 ## Backend
 ### Prerequistes
-Python 3.8 or Higher Installed on your machine
+- Python 3.8 or Higher Installed on your machine
 
 
 Naviagate into the backend folder using ```cd Backend``` and create a ```.env``` file. Here you will need a Google [Gemini API Key]((https://aistudio.google.com/prompts/new_chat)) . Store the API Key as ```GOOGLE_API_KEY=YOUR_API_KEY```. Then in your terminal install the necessary backend dependencies by running ```pip install -r requirements.txt```.  
